@@ -3,6 +3,14 @@
 ## TODO
 - [ ]  Cuando la página comienza añadir animación de cargando y luego de un timeout si no hay dispositivos, actualizar el UI acordemente.
 
+## Problems
+- List of devices in MASTER are not updated when one it's disconnected. Possible fix: do a round robin of checking every 1sec?
+- Just two commands for the time being (per device).
+- Many things are hard coded in the firmware (device data, commands, network data, websocket server).
+- Should really think of the logic for connecting devices, is it better to have an ESP32 to be a hotspot? or just to connect to the LAN? if LAN: how does one configure it (LAN data SSID and PASSWORD)?
+### Problems with IR
+- Special devices require more sofisticated IR blasting (AC not working wih NEC).
+
 ## Documentation
 
 ## Dependencies
