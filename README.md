@@ -8,6 +8,7 @@
 - Just two commands for the time being (per device).
 - Many things are hard coded in the firmware (device data, commands, network data, websocket server).
 - Should really think of the logic for connecting devices, is it better to have an ESP32 to be a hotspot? or just to connect to the LAN? if LAN: how does one configure it (LAN data SSID and PASSWORD)?
+- When the master disconnects the rest the slave won't connect back again.
 ### Problems with IR
 - Special devices require more sofisticated IR blasting (AC not working wih NEC).
 
@@ -17,6 +18,9 @@
 - [Arduino-IRremote](https://github.com/Arduino-IRremote/Arduino-IRremote?tab=readme-ov-file#receiving-ir-codes)
 - [ESPAsyncTCP](https://github.com/dvarrel/ESPAsyncTCP)
 - [Arduino-WebSockets](https://github.com/Links2004/arduinoWebSockets)
+
+## Board pinout (i think this is it)
+![esp32 wroom pinout](./esp32wroom32pinout.png)
 
 ## Contributors
 

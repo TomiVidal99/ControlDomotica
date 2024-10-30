@@ -23,6 +23,8 @@
 #define STR(x) STR_HELPER(x)
 #endif
 
+// #define WIFI_SSID "domotica prueba"
+// #define WIFI_PASSWORD "domo123456"
 #define WIFI_SSID "Casa Amarilla"
 #define WIFI_PASSWORD "mariposa15"
 #define RECONNECT_INTERVAL_MS 30000
@@ -33,7 +35,7 @@
 #define APPLY_CMD_CODE "use::cmd"
 
 // DEVICE INFORMATION
-#define DEVICE_NAME "IR_BLASTER_TEST"
+// #define DEVICE_NAME "IR_BLASTER_TEST"
 #define DEVICE_LOCATION "habitacion 1"
 #define DEVICE_DESCRIPTION "Controlador del aire acondicionado"
 #define DEVICE_DEFAULT_CMD 0
@@ -53,6 +55,11 @@ void setup() {
     ;  // Wait for Serial to become available. Is optimized away for some cores.
 
   Serial.println("I'm the slave!");
+
+#ifdef DEVICE_NAME
+#else
+  pinMode(23, OUTPUT);
+#endif
 
   // IR Sender Stuff---------------------------------
   // Just to know which program is running on my Arduino
@@ -125,12 +132,22 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
           switch (parsed_cmd_number) {
             case 0:  // prender LEDs
+#ifdef DEVICE_NAME
               Serial.println("Prendiendo LEDs");
               IrSender.sendNEC(0xEF00, 0x3, 1);
+#else
+              Serial.println("Test LED");
+              digitalWrite(23, HIGH);
+#endif
               break;
             case 1:  // apagar LEDs
+#ifdef DEVICE_NAME
               Serial.println("Apagando LEDs");
               IrSender.sendNEC(0xEF00, 0x2, 1);
+#else
+              Serial.println("Test LED apagando...");
+              digitalWrite(23, LOW);
+#endif
               break;
             default:
               Serial.println("ERROR: no se pudo encontrar el comando enviado! " + cmd_number);
@@ -147,8 +164,12 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
 void SendConectionInfoToMaster() {
   if (webSocket.isConnected()) {
-    // TODO: this should be defined at the TOP, and for every device think how to do it better
+// TODO: this should be defined at the TOP, and for every device think how to do it better
+#ifdef DEVICE_NAME
     String name = String(DEVICE_NAME);
+#else
+    String name = String("DEVICE TEST");
+#endif
     String location = String(DEVICE_LOCATION);
     String description = String(DEVICE_DESCRIPTION);
     String message = String(NEW_CLIENT_CODE) + "," + name + "," + location + "," + description + "\n";

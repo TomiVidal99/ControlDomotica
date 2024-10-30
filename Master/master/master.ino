@@ -4,6 +4,8 @@
 
 #include "./index.h"
 
+// #define WIFI_SSID "domotica prueba"
+// #define WIFI_PASSWORD "domo123456"
 #define WIFI_SSID "Casa Amarilla"
 #define WIFI_PASSWORD "mariposa15"
 #define MAX_CLIENTS_ALLOWED 3
