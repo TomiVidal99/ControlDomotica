@@ -8,7 +8,7 @@
 // #define WIFI_PASSWORD "domo123456"
 #define WIFI_SSID "Casa Amarilla"
 #define WIFI_PASSWORD "mariposa15"
-#define MAX_CLIENTS_ALLOWED 3
+#define MAX_CLIENTS_ALLOWED 20
 
 #define NEW_CLIENT_CODE "new::client"
 #define REQUEST_INFO_CODE "req::info"
@@ -17,10 +17,11 @@
 #define APPLY_CMD_CODE "use::cmd"
 
 typedef struct ClientItem {
-  int socketID;
+  uint8_t socketID;
   String name;
   String location;
   String description;
+  uint8_t pings; // this tracks weather the device it's connected or not
 };
 ClientItem connectedClients[MAX_CLIENTS_ALLOWED] = {};
 
@@ -52,6 +53,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
             .name = "",
             .location = "",
             .description = "",
+            .pings = 0,
           };
         }
       }
@@ -79,6 +81,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
             .name = name,
             .location = location,
             .description = description,
+            .pings = 0,
           };
           pushNewClient(item);
           if (lastClientConnected != -1) {

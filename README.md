@@ -2,6 +2,7 @@
 
 ## TODO
 - [ ]  Cuando la página comienza añadir animación de cargando y luego de un timeout si no hay dispositivos, actualizar el UI acordemente.
+- [ ] Check if the device already exists: the current function it's wrong (will not work).
 
 ## Problems
 - List of devices in MASTER are not updated when one it's disconnected. Possible fix: do a round robin of checking every 1sec?

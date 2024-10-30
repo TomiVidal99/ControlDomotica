@@ -1,6 +1,6 @@
 const char *htmlPage = R"rawliteral(
 <!DOCTYPE html>
-<html>
+<html lang="es">
 
 <head>
     <meta charset="utf-8">
