@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
-#include <HTTPClient.h>
+//#include <HTTPClient.h>
 
 // IR Sender Stuff -------------------------
 #include <Arduino.h>
@@ -42,12 +42,14 @@
 
 int currentMillis = 0;
 int previousMillis = 0;
+bool shouldTryReconnectWS = true;  //TODO:remove this
 
 WebSocketsClient webSocket;
 
 void CheckNetworkReconnect();                                               // checks if the LAN it's disconnected and attempts to reconnect                                                     // sends an HTTP request to the master website (NO REQUIERED NOW). TODO: remove this
 void SendConectionInfoToMaster();                                           // sends the information of this device to the host
 void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length);  // parses the information recieved over the web socket with the master
+void CheckReconnectWS();
 
 void setup() {
   Serial.begin(115200);
@@ -84,6 +86,7 @@ void setup() {
 
   webSocket.begin("192.168.100.233", 81, "/");
   webSocket.onEvent(handleWebSocketEvent);
+  webSocket.setReconnectInterval(1000);
 }
 
 void loop() {
@@ -108,10 +111,12 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
       Serial.println("WebSocket Disconnected");
+      shouldTryReconnectWS = true;
       break;
     case WStype_CONNECTED:
       Serial.println("WebSocket Connected to Server");
       SendConectionInfoToMaster();
+      shouldTryReconnectWS = false;
       break;
     case WStype_TEXT:
       {
@@ -156,6 +161,9 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
         }
         break;
       }
+    case WStype_PING:
+      webSocket.sendPing();
+      break;
     default:
       Serial.println("unhandled event");
       break;
@@ -179,3 +187,12 @@ void SendConectionInfoToMaster() {
     Serial.println("ERROR: WebSocket not connected!");
   }
 }
+
+//TODO:remove this
+// void CheckReconnectWS() {
+//   if (!shouldTryReconnectWS) return;
+//   Serial.println("WebSockets disconnected, trying to connect to master...");
+//   webSocket.begin("192.168.100.233", 81, "/");
+//   webSocket.onEvent(handleWebSocketEvent);
+//   shouldTryReconnectWS = true;
+// }
