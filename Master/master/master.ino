@@ -16,19 +16,25 @@
 #define REMOVED_DEVICE_CODE "removed::client"
 #define APPLY_CMD_CODE "use::cmd"
 
+// the ping should be at least twice the timeout
+// so at least there are two ping no?
+#define CLIENT_TIMEOUT_MS 5000
+#define PING_CLIENTS_EVERY_MS 2000
+
 typedef struct ClientItem {
-  uint8_t socketID;
+  int socketID;
   String name;
   String location;
   String description;
-  uint8_t pings; // this tracks weather the device it's connected or not
+  unsigned long lastPing;
 };
 ClientItem connectedClients[MAX_CLIENTS_ALLOWED] = {};
+uint8_t total_clients_connected = 0;
 
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
-int lastClientConnected = -1;
+int lastClientConnected = -1;  // maybe don't use this?? instead change the logic??
 
 String stringifyClientItem(ClientItem client);
 ClientItem getClientWithID(int id);
@@ -36,6 +42,102 @@ void initEmptyClients();
 void pushNewClient(ClientItem client);
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 void printClientItem(ClientItem item);
+void checkConnectedClients();
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("I'm the master!");
+
+  initEmptyClients();
+
+  // Connect to WiFi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.println(WiFi.localIP());
+
+  // Serve the static HTML page
+  server.on("/", HTTP_GET, []() {
+    server.send(200, "text/html", htmlPage);
+  });
+
+  // Start WebSocket server and set event handler
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+
+  // Start the web server
+  server.begin();
+}
+
+void loop() {
+  webSocket.loop();
+  server.handleClient();
+  checkConnectedClients();
+}
+
+String stringifyClientItem(ClientItem item) {
+  String str = String(item.socketID);
+  str += ", " + item.name;
+  str += ", " + item.description;
+  str += ", " + item.location;
+  str += "\n";
+}
+
+ClientItem getClientWithID(int id) {
+  for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+    if (connectedClients[i].socketID == id) {
+      return connectedClients[i];
+    }
+  }
+  return {
+    .socketID = -1,
+    .name = "",
+    .location = "",
+    .description = "",
+    .lastPing = 0,
+  };
+}
+
+void initEmptyClients() {
+  for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+    connectedClients[i] = {
+      .socketID = -1,
+      .name = "",
+      .location = "",
+      .description = "",
+      .lastPing = 0,
+    };
+  }
+}
+
+// TODO: maybe return -1 if failed? aka no more space for clients
+void pushNewClient(ClientItem client) {
+  if (client.socketID != -1) {
+    for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+      if (connectedClients[i].socketID == -1) {
+        connectedClients[i] = client;
+        lastClientConnected = i;
+        Serial.println("Pushed new client!");
+        printClientItem(client);
+        total_clients_connected++;
+        return;
+      }
+    }
+  }
+}
+
+// Prints to the Serial output the stringify version of an ClientItem
+void printClientItem(ClientItem item) {
+  Serial.println("ClientItem:");
+  Serial.println("\t socketID: " + String(item.socketID));
+  Serial.println("\t name: " + String(item.name));
+  Serial.println("\t location: " + String(item.location));
+  Serial.println("\t description: " + String(item.description));
+  Serial.println("");
+}
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
@@ -43,9 +145,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
       Serial.println("WebSocket Disconnected, " + String(num));
       webSocket.broadcastTXT(String(REMOVED_DEVICE_CODE) + "," + String(num));
       for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
-        if (connectedClients[i].socketID != -1) {  // TODO: remove this, just for a simple debugging
-          printClientItem(connectedClients[i]);
-        }
         if (connectedClients[i].socketID == num) {
           Serial.println("Removing client from list with index " + String(i));
           connectedClients[i] = {
@@ -53,7 +152,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
             .name = "",
             .location = "",
             .description = "",
-            .pings = 0,
+            .lastPing = 0,
           };
         }
       }
@@ -69,6 +168,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
         String data = String((char*)payload);
         if (data.indexOf(NEW_CLIENT_CODE) >= 0) {
           Serial.println("GOT: " + String(NEW_CLIENT_CODE));
+
+          for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+            if (connectedClients[i].socketID == num) {
+              printf("The client was already added!");
+              return;
+            }
+          }
+
           int firstComma = data.indexOf(',');
           int secondComma = data.indexOf(',', firstComma + 1);
           int thirdComma = data.indexOf(',', secondComma + 1);
@@ -81,9 +188,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
             .name = name,
             .location = location,
             .description = description,
-            .pings = 0,
+            .lastPing = millis(),
           };
           pushNewClient(item);
+          Serial.println("Saved new client with ID " + num);
           if (lastClientConnected != -1) {
             webSocket.broadcastTXT("new::client," + String(connectedClients[lastClientConnected].socketID) + "," + connectedClients[lastClientConnected].name + "," + connectedClients[lastClientConnected].location + "," + connectedClients[lastClientConnected].description + "\n");
           }
@@ -117,6 +225,21 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
         }
       }
       break;
+    case WStype_PING:
+      {
+        Serial.println("---> Pinged back: " + num);
+        // ClientItem client = getClientWithID(num);
+        // Serial.printf("Loading: %ld\n", millis());
+        // client.lastPing = millis();
+        for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+          if (connectedClients[i].socketID == num) {
+            Serial.println("Updated lastPing");
+            connectedClients[i].lastPing = millis();
+            break;
+          }
+        }
+        break;
+      }
     case WStype_PONG:
       break;
     default:
@@ -124,99 +247,30 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
       Serial.println(type);
       break;
   }
-  // if (type == WStype_TEXT) {
-
-  //   // webSocket.broadcastTXT("State updated!");
-  // }
 }
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("I'm the master!");
-
-  initEmptyClients();
-
-  // Connect to WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-  }
-  Serial.println("Connected to WiFi");
-  Serial.println(WiFi.localIP());
-
-  // Serve the static HTML page
-  server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html", htmlPage);
-  });
-
-  // Start WebSocket server and set event handler
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-
-  // Start the web server
-  server.begin();
-}
-
-void loop() {
-  webSocket.loop();
-  server.handleClient();
-}
-
-String stringifyClientItem(ClientItem item) {
-  String str = String(item.socketID);
-  str += ", " + item.name;
-  str += ", " + item.description;
-  str += ", " + item.location;
-  str += "\n";
-}
-
-ClientItem getClientWithID(int id) {
-  for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
-    if (connectedClients[i].socketID == id) {
-      return connectedClients[i];
-    }
-  }
-  return {
-    .socketID = -1,
-    .name = "",
-    .location = "",
-    .description = "",
-  };
-}
-
-void initEmptyClients() {
-  for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
-    connectedClients[i] = {
-      .socketID = -1,
-      .name = "",
-      .location = "",
-      .description = "",
-    };
-  }
-}
-
-// TODO: maybe return -1 if failed? aka no more space for clients
-void pushNewClient(ClientItem client) {
-  if (client.socketID != -1) {
-    for (int i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
-      if (connectedClients[i].socketID == -1) {
-        connectedClients[i] = client;
-        lastClientConnected = i;
-        Serial.println("Pushed new client!");
-        printClientItem(client);
-        return;
+volatile unsigned long currentTime;
+volatile unsigned long lastPingTime = 0;
+void checkConnectedClients() {
+  int i;
+  currentTime = millis();
+  if (currentTime - lastPingTime >= PING_CLIENTS_EVERY_MS) {
+    for (i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+      if (connectedClients[i].socketID != -1) {
+        webSocket.sendPing(connectedClients[i].socketID);
+        Serial.printf("Pinged client with ID %d \n", connectedClients[i].socketID);
       }
     }
+    lastPingTime = currentTime;
   }
-}
-
-// Prints to the Serial output the stringify version of an ClientItem
-void printClientItem(ClientItem item) {
-  Serial.println("ClientItem:");
-  Serial.println("\t socketID: " + String(item.socketID));
-  Serial.println("\t name: " + String(item.name));
-  Serial.println("\t location: " + String(item.location));
-  Serial.println("\t description: " + String(item.description));
-  Serial.println("");
+  for (i = 0; i < MAX_CLIENTS_ALLOWED; i++) {
+    if (connectedClients[i].socketID != -1 && currentTime - connectedClients[i].lastPing > CLIENT_TIMEOUT_MS) {
+      Serial.printf("diff: %ld\n", currentTime - connectedClients[i].lastPing);
+      // Client has timed out, so remove it
+      Serial.println("Client timed out: " + String(connectedClients[i].socketID));
+      webSocket.broadcastTXT(String(REMOVED_DEVICE_CODE) + "," + String(connectedClients[i].socketID));
+      connectedClients[i] = { .socketID = -1 };  // Clear client info
+      total_clients_connected--;
+    }
+  }
 }
