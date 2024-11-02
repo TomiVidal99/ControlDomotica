@@ -3,6 +3,7 @@
 ## TODO
 - [ ]  Cuando la página comienza añadir animación de cargando y luego de un timeout si no hay dispositivos, actualizar el UI acordemente.
 - [ ] Check if the device already exists: the current function it's wrong (will not work).
+- [ ] Should auto detect slaves when the master is rebooted/reconnected. Currently if slaves are active and the slave restarts then the slave won't connect back with the slaves.
 
 ## Problems
 - List of devices in MASTER are not updated when one it's disconnected. Possible fix: do a round robin of checking every 1sec?
