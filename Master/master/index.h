@@ -98,6 +98,13 @@ const char *htmlPage = R"rawliteral(
             color: var(--charcoal);
         }
 
+        .device-location {
+            font-style: italic;
+            font-size: .85em;
+            margin-top: 0;
+            margin-bottom: 1em;
+        }
+
         #controls-container {
             width: min-content;
             margin: auto;
@@ -147,8 +154,8 @@ const char *htmlPage = R"rawliteral(
         var websocket;
         const connectedDevices = [];
         function initWebSocket() {
-            websocket = new WebSocket("ws://" + window.location.hostname + ":81/");
-            //websocket = new WebSocket("ws://192.168.100.233:81/");
+            //websocket = new WebSocket("ws://" + window.location.hostname + ":81/");
+            websocket = new WebSocket("ws://192.168.100.233:81/");
             websocket.onmessage = function (event) {
                 console.log(event);
                 console.info(event.data);
@@ -162,13 +169,14 @@ const char *htmlPage = R"rawliteral(
                             if (connectedDevices.includes(d => d.socketID === socketID)) {
                                 console.error("Device already connected with ID: " + socketID);
                             }
-                            connectedDevices.push({
+                            const dev = {
                                 socketID,
                                 name,
                                 location,
                                 description
-                            });
-                            addDevice(name, description, socketID);
+                            };
+                            connectedDevices.push(dev);
+                            addDevice(dev);
                         }
                         return;
                     case WS_CODES.REMOVED_CLIENT:
@@ -197,11 +205,12 @@ const char *htmlPage = R"rawliteral(
                 websocket.send("Hello from Client");
             }
         }
-        function addDevice(title, description, socketID) {
+        function addDevice({ socketID, name, location, description }) {
             const devicesContainer = document.getElementById("devices-container");
             const deviceElement = document.createElement("div");
             const titleElement = document.createElement("span");
             const descriptionElement = document.createElement("p");
+            const locationElement = document.createElement("p");
             const pokeBtnElement = document.createElement("button");
 
             const btnsContainer = document.createElement("div");
@@ -217,8 +226,8 @@ const char *htmlPage = R"rawliteral(
             const cmd2Btn = document.createElement("button");
             cmd2Btn.innerText = "Comando 2";
             cmd2Btn.onclick = function () {
-                const socketID = this.parentElement.parentElement.getAttribute("device-id");
-                const cmd = WS_CODES.SEND_CMD + "," + socketID + "," + "1";
+                const id = this.parentElement.parentElement.getAttribute("device-id");
+                const cmd = WS_CODES.SEND_CMD + "," + id + "," + "1";
                 console.log("Trying to send command: " + cmd);
                 websocket.send(cmd);
             }
@@ -230,11 +239,15 @@ const char *htmlPage = R"rawliteral(
 
             deviceElement.classList.add("device");
             deviceElement.setAttribute("device-id", socketID);
-            titleElement.innerText = title;
+            titleElement.innerText = name;
             descriptionElement.innerText = description;
+
+            locationElement.classList.add("device-location");
+            locationElement.innerText = location;
 
             deviceElement.appendChild(titleElement);
             deviceElement.appendChild(descriptionElement);
+            deviceElement.appendChild(locationElement);
             deviceElement.appendChild(btnsContainer);
 
             devicesContainer.appendChild(deviceElement);
