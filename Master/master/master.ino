@@ -4,10 +4,10 @@
 
 #include "./index.h"
 
-// #define WIFI_SSID "domotica prueba"
-// #define WIFI_PASSWORD "domo123456"
-#define WIFI_SSID "Casa Amarilla"
-#define WIFI_PASSWORD "mariposa15"
+#define WIFI_SSID "ESP32_AP_TEST"
+#define WIFI_PASSWORD "AP123456"
+// #define WIFI_SSID "Casa Amarilla"
+// #define WIFI_PASSWORD "mariposa15"
 #define MAX_CLIENTS_ALLOWED 20
 
 #define NEW_CLIENT_CODE "new::client"

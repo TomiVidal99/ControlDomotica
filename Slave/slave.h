@@ -7,10 +7,10 @@
 #include "PinDefinitionsAndMore.h" // Set IR_RECEIVE_PIN for different CPU's
 #include <IRremote.hpp>            // include the library
 
-// #define WIFI_SSID "domotica prueba"
-// #define WIFI_PASSWORD "domo123456"
-#define WIFI_SSID "Casa Amarilla"
-#define WIFI_PASSWORD "mariposa15"
+#define WIFI_SSID "ESP32_AP_TEST"
+#define WIFI_PASSWORD "AP123456"
+// #define WIFI_SSID "Casa Amarilla"
+// #define WIFI_PASSWORD "mariposa15"
 #define RECONNECT_INTERVAL_MS 30000
 #define RECV_PIN 15
 #define IR_SEND_PIN 2
