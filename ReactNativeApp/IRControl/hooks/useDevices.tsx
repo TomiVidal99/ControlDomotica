@@ -1,19 +1,16 @@
 import { WS_CODES } from "@/constants/WSCodes";
-import { useEffect, useRef, useState } from "react";
+import { useDevicesStore } from "@/stores/devicesStore";
+import { useRef, useEffect } from "react";
 
-const WEB_SOCKET_URL = "ws://192.168.100.233:81";
+const WEB_SOCKET_URL = "ws://192.168.4.2:81";
 
-export default function useDevices(): {
-  devices: Device[];
-  command: (arg1: number, arg2: number) => void;
-  reload: () => void;
-} {
-  const [devices, setDevices] = useState<Device[]>([]);
-  let websocket = useRef(new WebSocket(WEB_SOCKET_URL)).current;
+export default function useDevices() {
+  const { devices, setDevices, addDevice, removeDevice } = useDevicesStore();
+  const websocket = useRef<WebSocket>(new WebSocket(WEB_SOCKET_URL)).current;
 
   const reload = (): void => {
-    setDevices([]);
-        websocket.send(WS_CODES.GET_DEVICES);
+    setDevices([]); // Clear devices in Zustand store
+    websocket.send(WS_CODES.GET_DEVICES);
   };
 
   const command = (cmdId: number, deviceId: number): void => {
@@ -29,35 +26,26 @@ export default function useDevices(): {
       }, 200);
     };
 
-    // Event handler for when the WebSocket receives a message
     websocket.onmessage = (event) => {
       console.warn("got message");
-      console.log(event);
-      console.info(event.data);
-      //document.getElementById("status").innerHTML = event.data;
-      const splitted = event.data.split("\n")[0].split(",");
-      switch (splitted[0]) {
-        case WS_CODES.NEW_CLIENT:
-          {
-            const [code, id, name, location, description] = splitted;
-            const socketID = parseInt(id);
-            // TODO: check if device already exists
-            setDevices([
-              ...devices,
-              {
-                socketID,
-                name,
-                location,
-                description,
-              },
-            ]);
+      const data = event.data.split("\n")[0].split(",");
+      switch (data[0]) {
+        case WS_CODES.NEW_CLIENT: {
+          const [code, id, name, location, description] = data;
+          const socketID = parseInt(id);
+          // Check if device already exists before adding
+          if (!devices.some((device) => device.socketID === socketID)) {
+            addDevice({ socketID, name, location, description });
           }
-          return;
-        case WS_CODES.REMOVED_CLIENT:
-          {
-            console.error("Not implemented");
-          }
-          return;
+          break;
+        }
+        case WS_CODES.REMOVED_CLIENT: {
+          const socketID = parseInt(data[1]);
+          removeDevice(socketID);
+          break;
+        }
+        default:
+          console.error("Unhandled message type:", data[0]);
       }
     };
 
@@ -68,19 +56,7 @@ export default function useDevices(): {
     return () => {
       websocket?.close();
     };
-  }, [websocket]);
-
-  // Just for testing
-  //   useEffect(() => {
-  //     console.warn("TODO");
-  //     const dev: Device = {
-  //       socketID: 0,
-  //       name: "testing device",
-  //       location: "Habitación 1",
-  //       description: "Dispositivo de testing",
-  //     };
-  //     setDevices([dev]);
-  //   }, []);
+  }, [websocket, addDevice, removeDevice]);
 
   return { devices, command, reload };
 }

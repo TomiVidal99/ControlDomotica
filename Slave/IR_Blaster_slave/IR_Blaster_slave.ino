@@ -32,7 +32,7 @@ void setup()
     Serial.println(WiFi.localIP());
     delay(500);
 
-    webSocket.begin("192.168.100.233", 81, "/");
+    webSocket.begin(WS_IP_ADDR, WS_IP_PORT, WS_IP_PATH);
     webSocket.onEvent(handleWebSocketEvent);
     webSocket.setReconnectInterval(1000);
 }

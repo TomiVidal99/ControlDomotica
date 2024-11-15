@@ -9,6 +9,9 @@
 
 #define WIFI_SSID "ESP32_AP_TEST"
 #define WIFI_PASSWORD "AP123456"
+#define WS_IP_ADDR "192.168.4.2"
+#define WS_IP_PORT ((uint16_t)81)
+#define WS_IP_PATH "/"
 // #define WIFI_SSID "Casa Amarilla"
 // #define WIFI_PASSWORD "mariposa15"
 #define RECONNECT_INTERVAL_MS 30000

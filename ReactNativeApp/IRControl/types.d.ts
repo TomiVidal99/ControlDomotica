@@ -4,3 +4,7 @@ interface Device {
     location: string;
     description: string;
 }
+
+interface DevicesState {
+  devices: Device;
+}
