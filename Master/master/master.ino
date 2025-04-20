@@ -1,20 +1,41 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
+#include <EEPROM.h>
+#include <ESPmDNS.h>
 
 #include "./index.h"
+#include "./config_page.h"
 
-#define WIFI_SSID "ESP32_AP_TEST"
-#define WIFI_PASSWORD "AP123456"
+#define RESET_AP_MODE_BTN_PRESSED_DELAY (5000)  // it's directly proportional to the time
+#define AP_BTN_PIN (21)                         // D21 of the ESP32 WROOM32 board
+
+typedef struct WifiCrendentials {
+  char ssid[32];
+  char password[64];
+};
+
+#define EEPROM_SIZE sizeof(WifiCrendentials)
+#define EEPROM_ADDR 0
+
+// #define WIFI_SSID "ESP32_AP_TEST"
+// #define WIFI_PASSWORD "AP123456"
 // #define WIFI_SSID "Casa Amarilla"
 // #define WIFI_PASSWORD "mariposa15"
+#define SOFT_AP_SSID "DOMOTICA"
+#define SOFT_AP_PASSWORD "123456789"
 #define MAX_CLIENTS_ALLOWED 20
+
+#define MAX_WIFI_CONNECTION_TRIES 20
+
+#define MDNS_DEVICE_ALIAS "esp32-device"
 
 #define NEW_CLIENT_CODE "new::client"
 #define REQUEST_INFO_CODE "req::info"
 #define REQUEST_DEVICES_CODE "get::devices"
 #define REMOVED_DEVICE_CODE "removed::client"
 #define APPLY_CMD_CODE "use::cmd"
+#define NEW_LAN_DATA "set::lan"
 
 // the ping should be at least twice the timeout
 // so at least there are two ping no?
@@ -28,13 +49,24 @@ typedef struct ClientItem {
   String description;
   unsigned long lastPing;
 };
-ClientItem connectedClients[MAX_CLIENTS_ALLOWED] = {};
+ClientItem connectedClients[MAX_CLIENTS_ALLOWED];
 uint8_t total_clients_connected = 0;
 
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
+uint8_t wifiConnectionTries = 0;
 int lastClientConnected = -1;  // maybe don't use this?? instead change the logic??
+
+/**
+* SOFT_AP       -> Hosts a website to configure the device
+* NORMAL_HOST   -> It's the normal mode, that connects to the LAN 
+*/
+typedef enum AP_MODE { SOFT_AP,
+                       NORMAL_HOST,
+                       NONE };
+AP_MODE shouldChangeMasterMode = SOFT_AP;
+AP_MODE currentMasterMode = NONE;
 
 String stringifyClientItem(ClientItem client);
 ClientItem getClientWithID(int id);
@@ -43,39 +75,30 @@ void pushNewClient(ClientItem client);
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 void printClientItem(ClientItem item);
 void checkConnectedClients();
+void checkAPBtnPressed();                                                 // checks if the AP reset button has been pressed, and acts accordingly                                                // this updates the current mode of the Master, settings mode (SOFT_AP) or normal mode (NORMAL_HOST)
+void handleNetworkInitialization();                                       // This handle the connection to WiFi and the host of the website and all network related.
+void saveWiFiCredentialsToFlash(const char* ssid, const char* password);  // Save to non volatile memory (Flash) the SSID and PASSWORD
+bool loadWiFiCredentials(char* ssid, char* password);                     // Get SSID and PASSWORD from Flash, if they exist returns true
 
 void setup() {
   Serial.begin(115200);
   Serial.println("I'm the master!");
 
-  initEmptyClients();
+  // Reset AP mode Button
+  // this botton allows the user to change the WIFI
+  // information
+  pinMode(AP_BTN_PIN, INPUT_PULLUP);
 
-  // Connect to WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-  }
-  Serial.println("Connected to WiFi");
-  Serial.println(WiFi.localIP());
+  handleNetworkInitialization();
 
-  // Serve the static HTML page
-  server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html", htmlPage);
-  });
-
-  // Start WebSocket server and set event handler
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-
-  // Start the web server
-  server.begin();
+  printf("Setup complete!");
 }
 
 void loop() {
   webSocket.loop();
   server.handleClient();
   checkConnectedClients();
+  // checkAPBtnPressed();
 }
 
 String stringifyClientItem(ClientItem item) {
@@ -84,6 +107,7 @@ String stringifyClientItem(ClientItem item) {
   str += ", " + item.description;
   str += ", " + item.location;
   str += "\n";
+  return str;
 }
 
 ClientItem getClientWithID(int id) {
@@ -222,6 +246,34 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
           String sending_cmd = String(APPLY_CMD_CODE) + "," + cmd_num + "\n";
           Serial.println("Sending cmd: " + sending_cmd);
           webSocket.sendTXT(id.toInt(), sending_cmd);
+        } else if (data.indexOf(NEW_LAN_DATA) >= 0) {
+          // This is when LAN information has to be set to
+          // connect to a different network
+          // new: SSID and PASSWORD
+          // it's expected to receive the information in the following way:
+          // "set::lan;;SSID;;PASSWORD"
+          Serial.println("GOT: " + data);
+
+          // Find the positions of the delimiters
+          int firstDelimiter = data.indexOf(";;");
+          int secondDelimiter = data.indexOf(";;", firstDelimiter + 2);
+
+          // Extract SSID (between first ;; and second ;;)
+          String ssid = data.substring(firstDelimiter + 2, secondDelimiter);
+
+          // Extract Password (after second ;;)
+          String password = data.substring(secondDelimiter + 2);
+
+          // Convert to char arrays
+          char newSSID[32] = "";
+          char newPasswd[64] = "";
+          ssid.toCharArray(newSSID, sizeof(newSSID));
+          password.toCharArray(newPasswd, sizeof(newPasswd));
+
+          Serial.println("SSID: " + String(newSSID));
+          Serial.println("Password: " + String(newPasswd));
+          saveWiFiCredentialsToFlash(newSSID, newPasswd);
+          handleNetworkInitialization();
         }
       }
       break;
@@ -273,4 +325,107 @@ void checkConnectedClients() {
       total_clients_connected--;
     }
   }
+}
+
+/**
+* Handles the button pressed for when the user wants to 
+* change the AP mode to change the device settings 
+* (wifi SSID and PASSWORD).
+*/
+uint16_t ap_btn_counter = 0;
+void checkAPBtnPressed() {
+  if (!digitalRead(AP_BTN_PIN)) {
+    ap_btn_counter++;
+  } else if (ap_btn_counter != 0) {
+    ap_btn_counter = 0;
+  }
+  if (ap_btn_counter > RESET_AP_MODE_BTN_PRESSED_DELAY) {
+    ap_btn_counter = 0;
+    shouldChangeMasterMode = SOFT_AP;
+  }
+}
+
+void handleNetworkInitialization() {
+  char wifiSSID[32];
+  char wifiPasswd[64];
+
+  // Get the SSID and PASSWORD from the Flash memory
+  if (loadWiFiCredentials(wifiSSID, wifiPasswd)) {
+    WiFi.begin(wifiSSID, wifiPasswd);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.println("Connecting to WiFi...");
+      if (wifiConnectionTries >= MAX_WIFI_CONNECTION_TRIES) break;
+      wifiConnectionTries++;
+    }
+    wifiConnectionTries = 0;
+  }
+
+  initEmptyClients();
+
+  WiFi.mode(WIFI_MODE_APSTA);
+
+  // Configure AP subnet (optional)
+  WiFi.softAPConfig(IPAddress(192, 168, 5, 1), IPAddress(192, 168, 5, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAP(SOFT_AP_SSID, SOFT_AP_PASSWORD);
+
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+
+  server.on("/", HTTP_GET, []() {
+    server.send(200, "text/html", configPage);
+  });
+
+  server.on("/devices", HTTP_GET, []() {
+    server.send(200, "text/html", htmlPage);
+  });
+
+  server.begin();
+
+  // allow the device to be discoverable in the LAN
+  // TODO: make the MDNS ALIAS something unique. Maybe have a macro for it??
+  if (MDNS.begin(MDNS_DEVICE_ALIAS)) {  // Set a unique hostname
+    Serial.println("mDNS responder started");
+    MDNS.addService("http", "tcp", 80);  // Advertise HTTP service on port 80
+  }
+}
+
+void saveWiFiCredentialsToFlash(const char* ssid, const char* password) {
+  EEPROM.begin(EEPROM_SIZE);  // Initialize EEPROM
+
+  WifiCrendentials creds;
+  strncpy(creds.ssid, ssid, sizeof(creds.ssid));
+  strncpy(creds.password, password, sizeof(creds.password));
+
+  // Write struct to EEPROM at address 0
+  EEPROM.put(0, creds);
+
+  EEPROM.commit();  // Save changes to flash
+  EEPROM.end();     // Free EEPROM resources
+
+  Serial.println("WiFi credentials saved!");
+}
+
+bool loadWiFiCredentials(char* ssid, char* password) {
+  EEPROM.begin(EEPROM_SIZE);
+
+  WifiCrendentials creds;
+  EEPROM.get(0, creds);  // Read from address 0
+
+  EEPROM.end();
+
+  // Check if SSID is not empty
+  if (creds.ssid[0] == '\0') {
+    Serial.println("No WiFi credentials stored.");
+    return false;
+  }
+
+  strncpy(ssid, creds.ssid, 32);
+  strncpy(password, creds.password, 64);
+
+  Serial.println("Loaded WiFi credentials:");
+  Serial.println("SSID: " + String(ssid));
+  Serial.println("Password: " + String(password));
+
+  return true;
 }

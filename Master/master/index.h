@@ -155,7 +155,7 @@ const char *htmlPage = R"rawliteral(
         const connectedDevices = [];
         function initWebSocket() {
             //websocket = new WebSocket("ws://" + window.location.hostname + ":81/");
-            websocket = new WebSocket("ws://192.168.4.2:81/");
+            websocket = new WebSocket("ws://esp32-device.local:81/");
             websocket.onmessage = function (event) {
                 console.log(event);
                 console.info(event.data);
