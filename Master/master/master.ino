@@ -26,10 +26,11 @@ typedef struct WifiCrendentials
 #define SOFT_AP_SSID "DOMOTICA"
 #define SOFT_AP_PASSWORD "123456789"
 #define MAX_CLIENTS_ALLOWED 20
+#define HTTP_ROUTE_DEVICES "/dispositivos"
 
 #define MAX_WIFI_CONNECTION_TRIES 20
 
-#define MDNS_DEVICE_ALIAS "esp32-device"
+#define MDNS_DEVICE_ALIAS "domotica"
 
 #define NEW_CLIENT_CODE "new::client"
 #define REQUEST_INFO_CODE "req::info"
@@ -448,7 +449,7 @@ void handleNetworkInitialization()
   server.on("/", HTTP_GET, []()
             { server.send(200, "text/html", configPage); });
 
-  server.on("/devices", HTTP_GET, []()
+  server.on(HTTP_ROUTE_DEVICES, HTTP_GET, []()
             { server.send(200, "text/html", htmlPage); });
 
   server.begin();

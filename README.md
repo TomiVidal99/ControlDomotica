@@ -31,7 +31,7 @@
 
 ## How does it work?
 
-The first time you need to set the SSID and PASSWORD of your local WiFi network, so that the master and the devices can connect to it. For it, you have to have all the devices close to each other so that the slave devices can connect to the AP that the master will create, then you have to connect to it (the name of it it's the macro SOFT_AP_SSID and the password it's the macro SOFT_AP_PASSWORD), then once you've connected to the AP you have to access the website that it hosts (the name of the domain it's the macro MDNS_DEVICE_ALIAS, "esp32-device") "esp32-device.local/", this website will allow you to set the SSID and PASSWORD of your network. Once you've set them, the master will connect to it, and then you can access your network and in the web "esp32-device.local/devices" you'll find the slaves that you can interact with.
+The first time you need to set the SSID and PASSWORD of your local WiFi network, so that the master and the devices can connect to it. For it, you have to have all the devices close to each other so that the slave devices can connect to the AP that the master will create, then you have to connect to it (the name of it it's the macro SOFT_AP_SSID and the password it's the macro SOFT_AP_PASSWORD), then once you've connected to the AP you have to access the website that it hosts (the name of the domain it's the macro MDNS_DEVICE_ALIAS, "domotica") "domotica.local/", this website will allow you to set the SSID and PASSWORD of your network. Once you've set them, the master will connect to it, and then you can access your network and in the web "domotica.local/dispositivos" you'll find the slaves that you can interact with.
 
 ## Contributors
 

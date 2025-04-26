@@ -128,7 +128,7 @@ const char *configPage = R"rawliteral(
         }
         var websocket;
         function initWebSocket() {
-            websocket = new WebSocket("ws://esp32-device.local:81/");
+            websocket = new WebSocket("ws://domotica.local:81/");
             console.log("Connecting to web sockets: " + websocket);
 
             websocket.onmessage = function (event) {

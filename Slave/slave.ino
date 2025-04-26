@@ -5,24 +5,110 @@
 #include <IRremote.hpp>            // include the library
 #include "slave.h"
 
-int millisReconnectNet = 0;
-int millisPrevReconnectNet = 0;
 WebSocketsClient webSocket;
 
-uint8_t wifiConnectionTries = 0;
+static int millisReconnectNet = 0;
+static int millisPrevReconnectNet = 0;
+static uint8_t wifiConnectionTries = 0;
+
+void onText(WStype_t type, uint8_t *payload, size_t length)
+{
+#ifdef DEBUG
+  Serial.printf("Received message: %s\n", payload);
+#endif
+  String data = String((char *)payload);
+  if (data.indexOf(APPLY_CMD_CODE) >= 0)
+  {
+#ifdef DEBUG
+    Serial.println("Applying new command! ");
+#endif
+
+    int firstComma = data.indexOf(',');
+    String code = data.substring(0, firstComma);
+    String cmd_number = data.substring(firstComma + 1);
+
+    int parsed_cmd_number = cmd_number.toInt();
+#ifdef DEBUG
+    Serial.printf("SLAVE GOT CMD NUMBER: %d\n", parsed_cmd_number);
+#endif
+
+    switch (parsed_cmd_number)
+    {
+    case 0: // prender LEDs
+#ifdef DEBUG
+      Serial.println("Prendiendo LEDs");
+#endif
+      IrSender.sendNEC(0xEF00, 0x3, 1);
+      delay(100);
+      IrSender.sendPulseDistanceWidth(38, 9050, 4450, 650, 1650, 650, 550, 0x25060050C, 35, PROTOCOL_IS_LSB_FIRST, 0, 0);
+      break;
+    case 1: // apagar LEDs
+#ifdef DEBUG
+      Serial.println("Apagando LEDs");
+#endif
+      IrSender.sendNEC(0xEF00, 0x2, 1);
+      delay(100);
+      IrSender.sendPulseDistanceWidth(38, 9000, 4450, 650, 1650, 650, 550, 0x25060050C, 35, PROTOCOL_IS_LSB_FIRST, 0, 0);
+      break;
+    default:
+#ifdef DEBUG
+      Serial.println("ERROR: no se pudo encontrar el comando enviado! " + cmd_number);
+#endif
+      break;
+    }
+  }
+  else if (data.indexOf(SLAVE_GET_WIFI_CREDS) >= 0)
+  {
+    // new WiFi credentials
+#ifdef DEBUG
+    Serial.println("New WiFi credentials: " + data);
+#endif
+
+    // Find the positions of the delimiters
+    int firstDelimiter = data.indexOf(";;");
+    int secondDelimiter = data.indexOf(";;", firstDelimiter + 2);
+
+    // Extract SSID (between first ;; and second ;;)
+    String ssid = data.substring(firstDelimiter + 2, secondDelimiter);
+
+    // Extract Password (after second ;;)
+    String password = data.substring(secondDelimiter + 2);
+
+    // Convert to char arrays
+    char newSSID[WIFI_SSID_BUFFER_SIZE] = "";
+    char newPasswd[WIFI_PASSWD_BUFFER_SIZE] = "";
+    ssid.toCharArray(newSSID, sizeof(newSSID));
+    password.toCharArray(newPasswd, sizeof(newPasswd));
+
+    handleNewWiFiCredentials(newSSID, newPasswd);
+  }
+}
 
 void CheckNetworkReconnect()
 {
   millisReconnectNet = millis();
-  if ((WiFi.status() != WL_CONNECTED) && (millisReconnectNet - millisPrevReconnectNet >= RECONNECT_INTERVAL_MS))
+  if ((millisReconnectNet - millisPrevReconnectNet >= RECONNECT_INTERVAL_MS))
   {
+    // Check WiFi connection
+    if ((WiFi.status() != WL_CONNECTED))
+    {
 #ifdef DEBUG
-    Serial.print(millis());
-    Serial.println("Reconnecting to WiFi...");
+      Serial.println("Reconnecting to WiFi...");
 #endif
-    WiFi.disconnect();
-    WiFi.reconnect();
-    millisPrevReconnectNet = millisReconnectNet;
+      WiFi.disconnect();
+      WiFi.reconnect();
+      millisPrevReconnectNet = millisReconnectNet;
+    }
+
+    // Check Sockets connection
+    if (!webSocket.isConnected()) {
+#ifdef DEBUG
+      Serial.println("Reconnecting to socket...");
+#endif
+      webSocket.begin(WS_IP_ADDR, WS_IP_PORT, WS_IP_PATH);
+      webSocket.onEvent(handleWebSocketEvent);
+      webSocket.setReconnectInterval(999);
+    }
   }
 }
 
@@ -82,8 +168,8 @@ void SendConectionInfoToMaster()
 
 void connectToWiFi()
 {
-  char wifiSSID[31];
-  char wifiPasswd[63];
+  char wifiSSID[WIFI_SSID_BUFFER_SIZE];
+  char wifiPasswd[WIFI_PASSWD_BUFFER_SIZE];
 
   // Get the SSID and PASSWORD from the Flash memory
   if (loadWiFiCredentials(wifiSSID, wifiPasswd))
@@ -182,8 +268,8 @@ bool loadWiFiCredentials(char *ssid, char *password)
     return false;
   }
 
-  strncpy(ssid, creds.ssid, 32);
-  strncpy(password, creds.password, 64);
+  strncpy(ssid, creds.ssid, WIFI_SSID_BUFFER_SIZE);
+  strncpy(password, creds.password, WIFI_PASSWD_BUFFER_SIZE);
 
 #ifdef DEBUG
   Serial.println("Loaded WiFi credentials:");

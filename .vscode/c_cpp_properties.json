@@ -4,8 +4,12 @@
             "name": "arduino-esp32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/Users/tomii/AppData/Local/Arduino15/packages/arduino/hardware/esp32/2.0.18-20240930.arduino3/libraries/**",
-                "C:/Users/tomii/AppData/Local/Arduino15/packages/arduino/hardware/esp32/2.0.18-20240930.arduino3/libraries/WiFi/src"
+                "C:/Users/tomii/Documents/Arduino/libraries/WebSockets/src/",
+                "C:/Users/tomii/Documents/Arduino/libraries/WebSockets/src/**",
+                "C:/Users/tomii/Documents/Arduino/libraries/IRremote/src/**",
+                "C:/Users/tomii/Documents/Arduino/libraries/IRremote/src/",
+                "C:/Users/tomii/Documents/Arduino/libraries/AsyncTCP/src/**",
+                "C:/Users/tomii/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.2.0/libraries/**/*"
             ],
             "defines": [
                 "_DEBUG",

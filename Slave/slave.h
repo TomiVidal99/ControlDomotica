@@ -11,6 +11,9 @@
 #ifndef __SLAVE_
 #define __SLAVE_
 
+#define WIFI_SSID_BUFFER_SIZE 32
+#define WIFI_PASSWD_BUFFER_SIZE 64
+
 // If you want to have Serial output enable DEBUG
 // #define DEBUG
 typedef struct WifiCrendentials
@@ -28,7 +31,7 @@ typedef struct WifiCrendentials
 // #define WIFI_SSID "ESP32_AP_TEST"
 // #define WIFI_PASSWORD "AP123456"
 // #define WS_IP_ADDR "192.168.4.2"
-#define WS_IP_ADDR "esp32-device.local" // this has to be the same as MDNS_DEVICE_ALIAS in the master. TODO: they should be the same macro
+#define WS_IP_ADDR "domotica.local" // this has to be the same as MDNS_DEVICE_ALIAS in the master. TODO: they should be the same macro
 #define WS_IP_PORT ((uint16_t)81)
 #define WS_IP_PATH "/"
 // #define WIFI_SSID "Casa Amarilla"

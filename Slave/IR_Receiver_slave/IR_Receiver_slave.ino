@@ -41,7 +41,7 @@
 #define DEVICE_DESCRIPTION "Receptor de comandos IR"
 
 #include "../slave.h"
-#include "../slave.ino"
+// #include "../slave.ino"
 
 void setup()
 {
