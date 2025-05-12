@@ -40,7 +40,7 @@ typedef struct WifiCrendentials
 #define RECV_PIN 15
 #define IR_SEND_PIN 2
 
-#define MAX_WIFI_CONNECTION_TRIES 20
+#define MAX_WIFI_CONNECTION_TRIES 2
 
 // COMMUNICATION CODES
 #define NEW_CLIENT_CODE "new::client"
@@ -51,6 +51,8 @@ typedef struct WifiCrendentials
 #define UPDATE_CREDENTIALS_CMD "set::lan"
 #define CREDENTIALS_UPDATED_ACK "cred::success"
 #define SLAVE_GET_WIFI_CREDS "req::creds"
+
+#define WS_REQ_CREDS ((int)-10)
 
 // DEVICE INFORMATION
 // TODO: this are the things that have to be modify

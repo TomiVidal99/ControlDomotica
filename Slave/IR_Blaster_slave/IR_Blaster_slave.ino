@@ -5,7 +5,7 @@
 #include <IRremote.hpp>
 
 // If you want to have logging messages
-// #define DEBUG
+#define DEBUG
 
 // these definitions have to be defined before slave.h
 #define DEVICE_NAME "IR_BLASTER"

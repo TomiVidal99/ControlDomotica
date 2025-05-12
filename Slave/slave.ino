@@ -9,7 +9,7 @@ WebSocketsClient webSocket;
 
 static int millisReconnectNet = 0;
 static int millisPrevReconnectNet = 0;
-static uint8_t wifiConnectionTries = 0;
+static int wifiConnectionTries = 0;
 
 void onText(WStype_t type, uint8_t *payload, size_t length)
 {
@@ -86,6 +86,27 @@ void onText(WStype_t type, uint8_t *payload, size_t length)
 
 void CheckNetworkReconnect()
 {
+  if (wifiConnectionTries >= MAX_WIFI_CONNECTION_TRIES)
+  {
+#ifdef DEBUG
+    Serial.println("Max tries reached connecting to soft AP...");
+#endif
+
+    WiFi.begin(SOFT_AP_SSID, SOFT_AP_PASSWORD);
+    delay(5000);
+
+    if ((WiFi.status() != WL_CONNECTED))
+      return;
+    wifiConnectionTries = WS_REQ_CREDS;
+#ifdef DEBUG
+    Serial.printf("Special message (%d)...\n", wifiConnectionTries);
+#endif
+
+    webSocket.begin(WS_IP_ADDR, WS_IP_PORT, WS_IP_PATH);
+    webSocket.onEvent(handleWebSocketEvent);
+    webSocket.setReconnectInterval(200);
+  }
+
   millisReconnectNet = millis();
   if ((millisReconnectNet - millisPrevReconnectNet >= RECONNECT_INTERVAL_MS))
   {
@@ -95,13 +116,24 @@ void CheckNetworkReconnect()
 #ifdef DEBUG
       Serial.println("Reconnecting to WiFi...");
 #endif
-      WiFi.disconnect();
-      WiFi.reconnect();
+
+      char wifiSSID[WIFI_SSID_BUFFER_SIZE];
+      char wifiPasswd[WIFI_PASSWD_BUFFER_SIZE];
+
+      if (loadWiFiCredentials(wifiSSID, wifiPasswd))
+      {
+        WiFi.begin(wifiSSID, wifiPasswd);
+      }
       millisPrevReconnectNet = millisReconnectNet;
+      wifiConnectionTries++;
+#ifdef DEBUG
+      Serial.printf("Reconnecting try (%d)...\n", wifiConnectionTries);
+#endif
     }
 
     // Check Sockets connection
-    if (!webSocket.isConnected()) {
+    if (!webSocket.isConnected())
+    {
 #ifdef DEBUG
       Serial.println("Reconnecting to socket...");
 #endif
@@ -121,7 +153,21 @@ void handleWebSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     break;
   case WStype_CONNECTED:
     // Serial.println("WebSocket Connected to Server");
-    SendConectionInfoToMaster();
+    {
+      if (wifiConnectionTries == WS_REQ_CREDS)
+      {
+#ifdef DEBUG
+        Serial.println("Asking for creds to master...");
+#endif
+
+        webSocket.sendTXT(SLAVE_GET_WIFI_CREDS);
+        wifiConnectionTries = 0;
+      }
+      else
+      {
+        SendConectionInfoToMaster();
+      }
+    }
     break;
   case WStype_TEXT:
     onText(type, payload, length);
@@ -175,54 +221,16 @@ void connectToWiFi()
   if (loadWiFiCredentials(wifiSSID, wifiPasswd))
   {
     WiFi.begin(wifiSSID, wifiPasswd);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      delay(999);
-#ifdef DEBUG
-      Serial.println("Connecting to WiFi...");
-#endif
-      if (wifiConnectionTries >= MAX_WIFI_CONNECTION_TRIES)
-        break;
-      wifiConnectionTries++;
-    }
-    wifiConnectionTries = -1;
   }
-  else
-  {
-    // Connects to default WiFi AP from the Master to
-    // ask for the internet information
-    WiFi.begin(SOFT_AP_SSID, SOFT_AP_PASSWORD);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      delay(999);
 
-#ifdef DEBUG
-      Serial.println("Connecting to Soft AP WiFi...");
-#endif
-    }
-    // Once connected, it asks for the internet information.
+  delay(2000);
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
     webSocket.begin(WS_IP_ADDR, WS_IP_PORT, WS_IP_PATH);
     webSocket.onEvent(handleWebSocketEvent);
     webSocket.setReconnectInterval(999);
-
-    if (webSocket.isConnected())
-    {
-      //   String cmd = String(SLAVE_GET_WIFI_CREDS);
-      //   String description = String(DEVICE_DESCRIPTION);
-      //   String message = String(NEW_CLIENT_CODE) + "," + name + "," + location + "," + description + "\n";
-      webSocket.sendTXT(SLAVE_GET_WIFI_CREDS);
-    }
   }
-
-#ifdef DEBUG
-  Serial.println(WiFi.localIP());
-#endif
-
-  delay(499);
-
-  webSocket.begin(WS_IP_ADDR, WS_IP_PORT, WS_IP_PATH);
-  webSocket.onEvent(handleWebSocketEvent);
-  webSocket.setReconnectInterval(999);
 }
 
 void handleNewWiFiCredentials(char *ssid, char *passwd)

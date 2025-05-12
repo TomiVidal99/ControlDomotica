@@ -8,7 +8,10 @@
 #include "./config_page.h"
 
 // If you want to have Serial output enable DEBUG
-// #define DEBUG
+#define DEBUG
+
+#define SSID_BUFFER_LENGTH 32
+#define PASSWD_BUFFER_LENGTH 64
 
 typedef struct WifiCrendentials
 {
@@ -327,8 +330,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
       String password = data.substring(secondDelimiter + 2);
 
       // Convert to char arrays
-      char newSSID[32] = "";
-      char newPasswd[64] = "";
+      char newSSID[SSID_BUFFER_LENGTH] = "";
+      char newPasswd[PASSWD_BUFFER_LENGTH] = "";
       ssid.toCharArray(newSSID, sizeof(newSSID));
       password.toCharArray(newPasswd, sizeof(newPasswd));
 
@@ -340,6 +343,21 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
       handleNetworkInitialization();
 
       webSocket.sendTXT(num, CREDENTIALS_UPDATED_ACK);
+    }
+    else if (data.indexOf(SLAVE_GET_WIFI_CREDS) >= 0)
+    {
+      // This handles the "handshaking" when there's a new
+      // SSID and PASSWD for the LAN, so that the slaves
+      // get the new information for the LAN
+      char ssid[SSID_BUFFER_LENGTH] = "";
+      char passwd[PASSWD_BUFFER_LENGTH] = "";
+      if (loadWiFiCredentials(ssid, passwd))
+      {
+#ifdef DEBUG
+        Serial.printf("Sending new credentials to slave (%d)\n", num);
+#endif
+        webSocket.sendTXT(num, String(SLAVE_GET_WIFI_CREDS) + ";;" + String(ssid) + ";;" + String(passwd));
+      }
     }
   }
   break;
@@ -507,9 +525,9 @@ bool loadWiFiCredentials(char *ssid, char *password)
 
 #ifdef DEBUG
   Serial.println("Loaded WiFi credentials:");
-#endif
   Serial.println("SSID: " + String(ssid));
   Serial.println("Password: " + String(password));
+#endif
 
   return true;
 }
